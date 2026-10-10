@@ -46,36 +46,63 @@ recruiter-bot/
 
 The database uses handwritten SQLite DDL defined in [`app/schema.sql`](file:///Users/sagar/recruiter-bot/app/schema.sql).
 
-### Candidates Table
+### Normalized Tables
+* **`candidates`**: Core candidate attributes (`id`, `name`, `experience`, `availability`, `quirk`).
+* **`candidate_skills`**: Relational junction table mapping `candidate_id` to `skill` (composite primary key, foreign key with `ON DELETE CASCADE`).
+* **`candidate_traits`**: Relational junction table mapping `candidate_id` to `trait` (composite primary key, foreign key with `ON DELETE CASCADE`).
+* **`jobs`**: Core job attributes (`id`, `title`, `min_experience`, `tagline`).
+* **`job_required_skills`**: Relational junction table mapping `job_id` to `skill` (composite primary key, foreign key with `ON DELETE CASCADE`).
+* **`job_culture_keywords`**: Relational junction table mapping `job_id` to `keyword` (composite primary key, foreign key with `ON DELETE CASCADE`).
+
 ```sql
 CREATE TABLE IF NOT EXISTS candidates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    skills TEXT NOT NULL,          -- JSON array of strings, e.g. ["deduction", "pattern-recognition", "forensics"]
     experience INTEGER NOT NULL CHECK (experience >= 0),
     availability TEXT NOT NULL,
-    traits TEXT NOT NULL,          -- JSON array of strings, e.g. ["analytical", "blunt"]
     quirk TEXT NOT NULL
 );
-```
 
-### Jobs Table
-```sql
+CREATE TABLE IF NOT EXISTS candidate_skills (
+    candidate_id INTEGER NOT NULL,
+    skill TEXT NOT NULL,
+    PRIMARY KEY (candidate_id, skill),
+    FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS candidate_traits (
+    candidate_id INTEGER NOT NULL,
+    trait TEXT NOT NULL,
+    PRIMARY KEY (candidate_id, trait),
+    FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL UNIQUE,
-    required_skills TEXT NOT NULL, -- JSON array of strings, e.g. ["deduction", "pattern-recognition", "forensics"]
     min_experience INTEGER NOT NULL CHECK (min_experience >= 0),
-    culture_keywords TEXT NOT NULL, -- JSON array of strings, e.g. ["analytical", "autonomous"]
     tagline TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_required_skills (
+    job_id INTEGER NOT NULL,
+    skill TEXT NOT NULL,
+    PRIMARY KEY (job_id, skill),
+    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS job_culture_keywords (
+    job_id INTEGER NOT NULL,
+    keyword TEXT NOT NULL,
+    PRIMARY KEY (job_id, keyword),
+    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
 );
 ```
 
-### Rationale for Representation of Multivalued Attributes
-
-* **Aggregate Root Encapsulation**: A candidate's skills/traits and a job's required skills/culture keywords are multivalued attributes that are always retrieved and evaluated together during matching.
-* **JSON Text Storage**: Storing arrays as JSON strings inside SQLite `TEXT` columns provides atomic reads in a single query, avoids 4 unnecessary bridge tables (`candidate_skills`, `candidate_traits`, `job_skills`, `job_culture`), and eliminates multi-table join overhead.
-* **Simplicity & Portability**: Python's `json` module parses these attributes cleanly. Raw SQL queries remain clean, parameterized, and performant.
+### Schema Rationale
+* **Core Attributes Separation**: Candidate and job core attributes remain in their own tables (`candidates`, `jobs`).
+* **Normalized Relationship Tables**: Multi-valued skills, traits, required skills, and culture keywords are represented using normalized relationship tables.
+* **Relational Querying & Indexing**: This avoids JSON-in-TEXT storage, maintains standard relational normalization, and enables direct relational querying and indexing via foreign key references.
 * **Dynamic Match Computation**: Matches are computed dynamically rather than persisted in a `matches` table. This avoids stale cache invalidation issues when candidate experience or job requirements change, ensuring guaranteed real-time consistency.
 
 ---
@@ -305,6 +332,6 @@ pytest tests/test_sql_detective.py -v
 
 1. **Database Access**: Direct standard library `sqlite3` was used with raw parameterized SQL (`?` placeholders) to comply strictly with the no-ORM, handwritten SQL constraint.
 2. **Candidate-Job Matches Storage**: Computed dynamically on request rather than saved in a permanent `matches` table. This prevents data drift when candidates or job requirements change and eliminates unnecessary database writes.
-3. **Multivalued Attributes**: Stored as JSON arrays in `TEXT` columns with clean validation. This provides document-like aggregate retrieval for candidate and job profiles while retaining SQL relational integrity.
+3. **Multivalued Attributes**: Represented using normalized relationship tables (`candidate_skills`, `candidate_traits`, `job_required_skills`, `job_culture_keywords`) with foreign keys and compound primary keys, providing clean relational normalization without JSON-in-TEXT storage.
 4. **Tie-Breaking Rule**: When two candidates or jobs share the exact same score, ties are broken first by higher skill overlap count, second by case-insensitive name/title ascending, and third by record ID ascending.
 5. **Window Function Ties in Question 5**: `DENSE_RANK()` was chosen over `ROW_NUMBER()` so that in the event of a tie for top placements in a department, all tied recruiters are fairly included rather than arbitrarily excluding one.

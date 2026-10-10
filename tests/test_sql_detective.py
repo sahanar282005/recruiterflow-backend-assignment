@@ -1,4 +1,7 @@
-"""Verification tests for the SQL Detective Challenge queries in sql_detective.sql."""
+"""Verification tests for the SQL Detective Challenge queries in sql_detective.sql
+
+Uses the exact RecruiterFlow SQL Detective dataset supplied in the assignment.
+"""
 
 import os
 import re
@@ -43,43 +46,61 @@ CREATE TABLE interviews (
 );
 """
 
-SAMPLE_DATA_SQL = """
--- Recruiters
-INSERT INTO recruiters (id, name, region) VALUES
-(1, 'Sarah Connor', 'North America'),
-(2, 'James Bond', 'Europe'),
-(3, 'Diana Prince', 'North America');
+ASSIGNMENT_DATA_SQL = """
+INSERT INTO recruiters VALUES
+(1, 'Priya Shah', 'APAC'),
+(2, 'Daniel Ortiz', 'NA'),
+(3, 'Fatima Al-Sayed', 'EMEA'),
+(4, 'Wei Zhang', 'APAC'),
+(5, 'Grace Okafor', 'EMEA');
 
--- Job Postings
-INSERT INTO job_postings (id, title, recruiter_id, department, opened_date, status) VALUES
-(101, 'Senior Backend Engineer', 1, 'Engineering', '2026-01-10', 'open'),
-(102, 'DevOps Architect', 1, 'Engineering', '2026-01-15', 'open'),
-(103, 'Product Manager', 2, 'Product', '2026-02-01', 'closed'),
-(104, 'Data Analyst', 3, 'Data', '2026-02-10', 'open');
+INSERT INTO job_postings VALUES
+(1, 'Backend Engineer I', 1, 'Engineering', '2026-01-05', 'open'),
+(2, 'Backend Engineer I', 2, 'Engineering', '2026-01-10', 'open'),
+(3, 'Data Analyst', 3, 'Data', '2026-01-08', 'closed'),
+(4, 'Backend Engineer II', 1, 'Engineering', '2026-02-01', 'open'),
+(5, 'DevOps Engineer', 4, 'Infrastructure', '2026-01-20', 'open'),
+(6, 'Data Analyst', 5, 'Data', '2026-02-05', 'on_hold'),
+(7, 'Backend Engineer I', 2, 'Engineering', '2026-02-15', 'closed');
 
--- Applicants (Notice Ananya Rao is listed twice with different email casing)
-INSERT INTO applicants (id, full_name, email, source, applied_date) VALUES
-(1, 'Ananya Rao', 'ananya.rao@example.com', 'LinkedIn', '2026-01-11'),
-(2, 'Ananya Rao', 'Ananya.Rao@example.com', 'Referral', '2026-01-16'),
-(3, 'Bruce Wayne', 'bruce.wayne@wayne.com', 'Direct', '2026-01-12'),
-(4, 'Clark Kent', 'clark.kent@dailyplanet.com', 'Job Board', '2026-01-14'),
-(5, 'Barry Allen', 'barry.allen@starlabs.com', 'Direct', '2026-02-05');
+INSERT INTO applicants VALUES
+(1, 'Ananya Rao', 'ananya.rao@mail.com', 'LinkedIn', '2026-01-06'),
+(2, 'Ananya Rao', 'Ananya.Rao@mail.com', 'Referral', '2026-02-04'),
+(3, 'Ben Turner', 'ben.turner@mail.com', 'Job Board', '2026-01-07'),
+(4, 'Chloe Martin', 'chloe.martin@mail.com', NULL, '2026-01-09'),
+(5, 'Devansh Patel', 'devansh.patel@mail.com', 'LinkedIn', '2026-01-11'),
+(6, 'Elena Popescu', 'elena.popescu@mail.com', 'Referral', '2026-01-12'),
+(7, 'Farid Haidari', 'farid.haidari@mail.com', 'Job Board', '2026-01-13'),
+(8, 'Grace Lin', 'grace.lin@mail.com', 'LinkedIn', '2026-01-15'),
+(9, 'Hassan Malik', 'hassan.malik@mail.com', NULL, '2026-01-16'),
+(10, 'Isla Fraser', 'isla.fraser@mail.com', 'Referral', '2026-01-18'),
+(11, 'Jonas Weber', 'jonas.weber@mail.com', 'Job Board', '2026-02-10');
 
--- Interviews
--- Job 101: Ananya (id 1) Final passed; Bruce (id 3) Final failed; Bruce duplicate interview Final failed
--- Job 102: Ananya (id 2) Final passed; Clark (id 4) Technical passed (not Final)
--- Job 103: Barry (id 5) Final passed
--- Job 104: Zero Final-stage interviews
-INSERT INTO interviews (id, applicant_id, job_posting_id, stage, scheduled_date, outcome) VALUES
-(1, 1, 101, 'Final', '2026-01-20', 'passed'),
-(2, 3, 101, 'Final', '2026-01-21', 'failed'),
-(3, 3, 101, 'Final', '2026-01-22', 'failed'), -- Duplicate final interview for same applicant & job
-(4, 2, 102, 'Final', '2026-01-25', 'passed'),
-(5, 4, 102, 'Technical', '2026-01-18', 'passed'), -- Non-Final stage
-(6, 1, 101, 'Screening', '2026-01-12', 'passed'),
-(7, 5, 103, 'Final', '2026-02-15', 'passed'),
--- Additional interviews for recruiter 1 to reach >= 3 final interviews:
-(8, 4, 101, 'Final', '2026-01-28', 'passed');
+INSERT INTO interviews VALUES
+(1, 1, 1, 'Screen', '2026-01-10', 'passed'),
+(2, 1, 1, 'Technical', '2026-01-15', 'passed'),
+(3, 1, 1, 'Final', '2026-01-22', 'passed'),
+(4, 2, 4, 'Screen', '2026-02-05', 'passed'),
+(5, 3, 1, 'Screen', '2026-01-11', 'passed'),
+(6, 3, 1, 'Technical', '2026-01-16', 'failed'),
+(7, 3, 3, 'Final', '2026-01-28', 'passed'),
+(8, 4, 1, 'Screen', '2026-01-12', 'passed'),
+(9, 4, 1, 'Final', '2026-01-24', 'failed'),
+(10, 5, 2, 'Screen', '2026-01-14', 'passed'),
+(11, 5, 2, 'Technical', '2026-01-19', 'passed'),
+(12, 5, 2, 'Final', '2026-01-25', 'passed'),
+(13, 6, 2, 'Screen', '2026-01-15', 'passed'),
+(14, 6, 2, 'Final', '2026-01-26', 'failed'),
+(15, 7, 2, 'Screen', '2026-01-16', 'no_show'),
+(16, 8, 4, 'Screen', '2026-02-03', 'passed'),
+(17, 8, 4, 'Technical', '2026-02-08', 'passed'),
+(18, 8, 4, 'Final', '2026-02-12', 'passed'),
+(19, 9, 4, 'Screen', '2026-02-04', 'passed'),
+(20, 9, 4, 'Final', '2026-02-14', 'passed'),
+(21, 10, 5, 'Screen', '2026-01-22', 'passed'),
+(22, 10, 5, 'Technical', '2026-01-28', NULL),
+(23, 11, 7, 'Final', '2026-02-20', 'passed'),
+(24, 6, 7, 'Final', '2026-02-21', 'failed');
 """
 
 
@@ -94,7 +115,6 @@ def extract_queries():
 
     for q_label, q_body in matches:
         clean_label = q_label.strip()
-        # Clean comment lines out to get just the query
         query_lines = [
             line for line in q_body.splitlines()
             if not line.strip().startswith("--") and line.strip()
@@ -110,7 +130,7 @@ def db():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA_SQL)
-    conn.executescript(SAMPLE_DATA_SQL)
+    conn.executescript(ASSIGNMENT_DATA_SQL)
     yield conn
     conn.close()
 
@@ -121,16 +141,17 @@ def test_question_1_open_job_postings(db):
     assert q1 is not None
 
     rows = db.execute(q1).fetchall()
-    # In sample data, job 101, 102, 104 are open; 103 is closed
-    open_ids = [r["job_posting_id"] for r in rows]
-    assert 101 in open_ids
-    assert 102 in open_ids
-    assert 104 in open_ids
-    assert 103 not in open_ids
+    assert len(rows) == 4
 
-    # Recruiter name joined correctly
-    job_101 = next(r for r in rows if r["job_posting_id"] == 101)
-    assert job_101["recruiter_name"] == "Sarah Connor"
+    postings_map = {r["job_posting_id"]: r["recruiter_name"] for r in rows}
+    assert postings_map == {
+        1: "Priya Shah",
+        2: "Daniel Ortiz",
+        4: "Priya Shah",
+        5: "Wei Zhang",
+    }
+    for r in rows:
+        assert r["status"] == "open"
 
 
 def test_question_2_final_stage_counts(db):
@@ -139,12 +160,16 @@ def test_question_2_final_stage_counts(db):
     assert q2 is not None
 
     rows = db.execute(q2).fetchall()
-    # Must include all 4 jobs (even 104 with 0)
     job_counts = {r["job_posting_id"]: r["final_stage_applicants_count"] for r in rows}
-    assert len(job_counts) == 4
-    assert job_counts[104] == 0  # 0 final stage applicants preserved via outer join
-    assert job_counts[102] == 1  # only Ananya (applicant 2) has Final; Clark has Technical
-    assert job_counts[101] == 3  # applicants 1, 3, and 4
+    assert job_counts == {
+        1: 2,
+        2: 2,
+        3: 1,
+        4: 2,
+        5: 0,
+        6: 0,
+        7: 2,
+    }
 
 
 def test_question_3_duplicate_person_and_multiple_applications(db):
@@ -153,14 +178,20 @@ def test_question_3_duplicate_person_and_multiple_applications(db):
     assert q3 is not None
 
     rows = db.execute(q3).fetchall()
-    # Ananya Rao effectively applied to jobs 101 and 102 via interviews
-    emails = [r["normalized_email"] for r in rows]
-    assert "ananya.rao@example.com" in emails
+    assert len(rows) == 3
 
-    ananya = next(r for r in rows if r["normalized_email"] == "ananya.rao@example.com")
-    assert ananya["distinct_job_postings_count"] == 2
-    # Bruce Wayne only applied to job 101, so should NOT be in the result
-    assert "bruce.wayne@wayne.com" not in emails
+    names = {r["applicant_name"] for r in rows}
+    assert names == {"Ananya Rao", "Ben Turner", "Elena Popescu"}
+
+    emails = {r["normalized_email"] for r in rows}
+    assert emails == {
+        "ananya.rao@mail.com",
+        "ben.turner@mail.com",
+        "elena.popescu@mail.com",
+    }
+
+    for r in rows:
+        assert r["distinct_job_postings_count"] > 1
 
 
 def test_question_4_recruiter_conversion_rate(db):
@@ -169,20 +200,20 @@ def test_question_4_recruiter_conversion_rate(db):
     assert q4 is not None
 
     rows = db.execute(q4).fetchall()
-    # Recruiter 1 (Sarah Connor) owns jobs 101 & 102.
-    # Total Final-stage interviews for recruiter 1:
-    # id 1 (passed), id 2 (failed), id 3 (failed), id 4 (passed), id 8 (passed) -> total 5 interviews, 3 passed.
-    # Rate: 3 / 5 = 0.60
-    # Recruiter 2 (James Bond) has only 1 Final interview (id 7) -> excluded by HAVING COUNT >= 3
-    # Recruiter 3 has 0 -> excluded
-    recruiter_ids = [r["recruiter_id"] for r in rows]
-    assert recruiter_ids == [1]
+    assert len(rows) == 2
 
-    r1 = rows[0]
-    assert r1["recruiter_name"] == "Sarah Connor"
-    assert r1["total_final_interviews"] == 5
-    assert r1["passed_final_interviews"] == 3
-    assert r1["conversion_rate"] == 0.6
+    results = {r["recruiter_name"]: r for r in rows}
+    assert set(results.keys()) == {"Priya Shah", "Daniel Ortiz"}
+
+    # Priya Shah: 3 passed / 4 Final interviews -> 0.75
+    assert results["Priya Shah"]["total_final_interviews"] == 4
+    assert results["Priya Shah"]["passed_final_interviews"] == 3
+    assert results["Priya Shah"]["conversion_rate"] == 0.75
+
+    # Daniel Ortiz: 2 passed / 4 Final interviews -> 0.50
+    assert results["Daniel Ortiz"]["total_final_interviews"] == 4
+    assert results["Daniel Ortiz"]["passed_final_interviews"] == 2
+    assert results["Daniel Ortiz"]["conversion_rate"] == 0.50
 
 
 def test_question_5_top_recruiter_per_department(db):
@@ -192,7 +223,18 @@ def test_question_5_top_recruiter_per_department(db):
 
     rows = db.execute(q5).fetchall()
     dept_map = {r["department"]: r["recruiter_name"] for r in rows}
-    # Engineering: Sarah Connor (3 successful placements)
-    # Product: James Bond (1 successful placement)
-    assert dept_map["Engineering"] == "Sarah Connor"
-    assert dept_map["Product"] == "James Bond"
+
+    # Engineering: Priya Shah (3 successful placements)
+    # Data: Fatima Al-Sayed (1 successful placement)
+    # Infrastructure: No recruiter with a passed Final interview, should not produce a placement
+    assert dept_map == {
+        "Engineering": "Priya Shah",
+        "Data": "Fatima Al-Sayed",
+    }
+    assert "Infrastructure" not in dept_map
+
+    priya = next(r for r in rows if r["recruiter_name"] == "Priya Shah")
+    assert priya["successful_placements"] == 3
+
+    fatima = next(r for r in rows if r["recruiter_name"] == "Fatima Al-Sayed")
+    assert fatima["successful_placements"] == 1

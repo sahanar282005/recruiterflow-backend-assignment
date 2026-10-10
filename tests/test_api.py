@@ -1,4 +1,4 @@
-"""Integration tests for FastAPI endpoints and database seeding."""
+"""Integration tests for FastAPI endpoints and database seeding with normalized relational schema."""
 
 import os
 import pytest
@@ -22,20 +22,43 @@ def client():
 
 
 def test_seed_idempotency():
-    """Verify that running seed multiple times does not create duplicate records."""
+    """Verify that running seed multiple times does not create duplicate records in any table."""
     c_count1, j_count1 = seed_database()
-    c_count2, j_count2 = seed_database()
-    assert c_count1 == 15
-    assert c_count2 == 15
-    assert j_count1 == 6
-    assert j_count2 == 6
 
     conn = get_db_connection()
     try:
-        cand_count = conn.execute("SELECT COUNT(*) FROM candidates;").fetchone()[0]
-        job_count = conn.execute("SELECT COUNT(*) FROM jobs;").fetchone()[0]
-        assert cand_count == 15
-        assert job_count == 6
+        cand_count1 = conn.execute("SELECT COUNT(*) FROM candidates;").fetchone()[0]
+        job_count1 = conn.execute("SELECT COUNT(*) FROM jobs;").fetchone()[0]
+        skills_count1 = conn.execute("SELECT COUNT(*) FROM candidate_skills;").fetchone()[0]
+        traits_count1 = conn.execute("SELECT COUNT(*) FROM candidate_traits;").fetchone()[0]
+        job_skills_count1 = conn.execute("SELECT COUNT(*) FROM job_required_skills;").fetchone()[0]
+        job_culture_count1 = conn.execute("SELECT COUNT(*) FROM job_culture_keywords;").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert cand_count1 == 15
+    assert job_count1 == 6
+
+    # Re-run seeding
+    c_count2, j_count2 = seed_database()
+    assert c_count1 == c_count2
+    assert j_count1 == j_count2
+
+    conn = get_db_connection()
+    try:
+        cand_count2 = conn.execute("SELECT COUNT(*) FROM candidates;").fetchone()[0]
+        job_count2 = conn.execute("SELECT COUNT(*) FROM jobs;").fetchone()[0]
+        skills_count2 = conn.execute("SELECT COUNT(*) FROM candidate_skills;").fetchone()[0]
+        traits_count2 = conn.execute("SELECT COUNT(*) FROM candidate_traits;").fetchone()[0]
+        job_skills_count2 = conn.execute("SELECT COUNT(*) FROM job_required_skills;").fetchone()[0]
+        job_culture_count2 = conn.execute("SELECT COUNT(*) FROM job_culture_keywords;").fetchone()[0]
+
+        assert cand_count2 == 15
+        assert job_count2 == 6
+        assert skills_count2 == skills_count1
+        assert traits_count2 == traits_count1
+        assert job_skills_count2 == job_skills_count1
+        assert job_culture_count2 == job_culture_count1
     finally:
         conn.close()
 

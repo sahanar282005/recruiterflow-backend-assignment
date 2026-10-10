@@ -1,6 +1,5 @@
-"""Deterministic ingestion script for candidates and jobs."""
+"""Deterministic ingestion script for candidates and jobs with normalized relational tables."""
 
-import json
 from typing import Optional
 from app.database import get_db_connection, init_db
 
@@ -174,7 +173,7 @@ JOBS_DATA = [
 
 
 def seed_database(db_path: Optional[str] = None) -> tuple[int, int]:
-    """Seed the database deterministically without duplicates.
+    """Seed the database deterministically without duplicates using normalized relational tables.
     
     Returns (candidate_count, job_count).
     """
@@ -182,55 +181,74 @@ def seed_database(db_path: Optional[str] = None) -> tuple[int, int]:
     conn = get_db_connection(db_path)
     try:
         with conn:
-            # Upsert candidates to guarantee idempotence
-            candidate_rows = [
-                (
-                    c["name"],
-                    json.dumps(c["skills"]),
-                    c["experience"],
-                    c["availability"],
-                    json.dumps(c["traits"]),
-                    c["quirk"],
+            # 1. Upsert candidates
+            for c in CANDIDATES_DATA:
+                conn.execute(
+                    """
+                    INSERT INTO candidates (name, experience, availability, quirk)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(name) DO UPDATE SET
+                        experience = excluded.experience,
+                        availability = excluded.availability,
+                        quirk = excluded.quirk;
+                    """,
+                    (c["name"], c["experience"], c["availability"], c["quirk"]),
                 )
-                for c in CANDIDATES_DATA
-            ]
-            conn.executemany(
-                """
-                INSERT INTO candidates (name, skills, experience, availability, traits, quirk)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(name) DO UPDATE SET
-                    skills = excluded.skills,
-                    experience = excluded.experience,
-                    availability = excluded.availability,
-                    traits = excluded.traits,
-                    quirk = excluded.quirk;
-                """,
-                candidate_rows,
-            )
+                cand_id = conn.execute(
+                    "SELECT id FROM candidates WHERE name = ?;", (c["name"],)
+                ).fetchone()[0]
 
-            # Upsert jobs to guarantee idempotence
-            job_rows = [
-                (
-                    j["title"],
-                    json.dumps(j["required_skills"]),
-                    j["min_experience"],
-                    json.dumps(j["culture_keywords"]),
-                    j["tagline"],
+                # Populate candidate_skills
+                conn.execute(
+                    "DELETE FROM candidate_skills WHERE candidate_id = ?;", (cand_id,)
                 )
-                for j in JOBS_DATA
-            ]
-            conn.executemany(
-                """
-                INSERT INTO jobs (title, required_skills, min_experience, culture_keywords, tagline)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(title) DO UPDATE SET
-                    required_skills = excluded.required_skills,
-                    min_experience = excluded.min_experience,
-                    culture_keywords = excluded.culture_keywords,
-                    tagline = excluded.tagline;
-                """,
-                job_rows,
-            )
+                conn.executemany(
+                    "INSERT INTO candidate_skills (candidate_id, skill) VALUES (?, ?);",
+                    [(cand_id, s) for s in c["skills"]],
+                )
+
+                # Populate candidate_traits
+                conn.execute(
+                    "DELETE FROM candidate_traits WHERE candidate_id = ?;", (cand_id,)
+                )
+                conn.executemany(
+                    "INSERT INTO candidate_traits (candidate_id, trait) VALUES (?, ?);",
+                    [(cand_id, t) for t in c["traits"]],
+                )
+
+            # 2. Upsert jobs
+            for j in JOBS_DATA:
+                conn.execute(
+                    """
+                    INSERT INTO jobs (title, min_experience, tagline)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(title) DO UPDATE SET
+                        min_experience = excluded.min_experience,
+                        tagline = excluded.tagline;
+                    """,
+                    (j["title"], j["min_experience"], j["tagline"]),
+                )
+                job_id = conn.execute(
+                    "SELECT id FROM jobs WHERE title = ?;", (j["title"],)
+                ).fetchone()[0]
+
+                # Populate job_required_skills
+                conn.execute(
+                    "DELETE FROM job_required_skills WHERE job_id = ?;", (job_id,)
+                )
+                conn.executemany(
+                    "INSERT INTO job_required_skills (job_id, skill) VALUES (?, ?);",
+                    [(job_id, s) for s in j["required_skills"]],
+                )
+
+                # Populate job_culture_keywords
+                conn.execute(
+                    "DELETE FROM job_culture_keywords WHERE job_id = ?;", (job_id,)
+                )
+                conn.executemany(
+                    "INSERT INTO job_culture_keywords (job_id, keyword) VALUES (?, ?);",
+                    [(job_id, k) for k in j["culture_keywords"]],
+                )
 
         candidate_count = conn.execute("SELECT COUNT(*) FROM candidates;").fetchone()[0]
         job_count = conn.execute("SELECT COUNT(*) FROM jobs;").fetchone()[0]
