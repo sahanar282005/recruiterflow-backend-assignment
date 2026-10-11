@@ -224,8 +224,8 @@ The API currently returns every candidate/job match without pagination. Matching
 
 ## AI Tool Usage
 
-AI assistance was used to review the assignment requirements, identify potential issues, and improve this documentation. The author remains responsible for reviewing and understanding the implementation and explaining its design decisions.
+AI assistance was used to review the assignment requirements, identify potential issues, and improve this implementation. Assistance was taken to debug the failures in API testing and trying to achieve bonus 5 SQL test cases. The author remains responsible for reviewing and understanding the implementation and explaining its design decisions.
 
 ## Assignment Context and Repository
 
-This repository implements RecruiterFlow's **Backend Developer Intern** take-home assignment: the Recruiter Bot backend and the separate SQL Detective Challenge. Replace `<REPOSITORY_URL>` in the clone instructions with the repository's actual URL; no remote URL is configured in this local checkout.
+This repository implements RecruiterFlow's **Backend Developer Intern** take-home assignment: the Recruiter Bot backend and the separate SQL Detective Challenge.
