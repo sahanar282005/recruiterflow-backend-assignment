@@ -64,21 +64,25 @@ HAVING COUNT(i.id) >= 3;
 
 -- Question 5 (Bonus)
 -- Using a window function, find the recruiter with the most successful placements (passed at Final stage)
--- per department. Uses DENSE_RANK() to retain all tied recruiters in the event of a tie.
-WITH department_recruiter_placements AS (
+-- per department, including recruiters/departments with zero placements. Uses DENSE_RANK() to retain ties.
+WITH successful_placements AS (
+    SELECT DISTINCT applicant_id, job_posting_id
+    FROM interviews
+    WHERE stage = 'Final' AND outcome = 'passed'
+),
+department_recruiter_placements AS (
     SELECT 
         jp.department,
         r.id AS recruiter_id,
         r.name AS recruiter_name,
-        COUNT(i.id) AS successful_placements,
+        COUNT(sp.applicant_id) AS successful_placements,
         DENSE_RANK() OVER (
             PARTITION BY jp.department 
-            ORDER BY COUNT(i.id) DESC
+            ORDER BY COUNT(sp.applicant_id) DESC
         ) AS rank_in_department
-    FROM recruiters r
-    JOIN job_postings jp ON r.id = jp.recruiter_id
-    JOIN interviews i ON jp.id = i.job_posting_id
-    WHERE i.stage = 'Final' AND i.outcome = 'passed'
+    FROM job_postings jp
+    JOIN recruiters r ON r.id = jp.recruiter_id
+    LEFT JOIN successful_placements sp ON sp.job_posting_id = jp.id
     GROUP BY jp.department, r.id, r.name
 )
 SELECT 

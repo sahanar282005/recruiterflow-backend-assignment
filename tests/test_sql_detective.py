@@ -222,19 +222,42 @@ def test_question_5_top_recruiter_per_department(db):
     assert q5 is not None
 
     rows = db.execute(q5).fetchall()
-    dept_map = {r["department"]: r["recruiter_name"] for r in rows}
-
-    # Engineering: Priya Shah (3 successful placements)
-    # Data: Fatima Al-Sayed (1 successful placement)
-    # Infrastructure: No recruiter with a passed Final interview, should not produce a placement
-    assert dept_map == {
-        "Engineering": "Priya Shah",
-        "Data": "Fatima Al-Sayed",
+    placements = {
+        (row["department"], row["recruiter_name"]): row["successful_placements"]
+        for row in rows
     }
-    assert "Infrastructure" not in dept_map
+    assert placements == {
+        ("Engineering", "Priya Shah"): 3,
+        ("Data", "Fatima Al-Sayed"): 1,
+        ("Infrastructure", "Wei Zhang"): 0,
+    }
 
-    priya = next(r for r in rows if r["recruiter_name"] == "Priya Shah")
-    assert priya["successful_placements"] == 3
+    db.execute(
+        "INSERT INTO interviews VALUES (?, ?, ?, ?, ?, ?);",
+        (25, 1, 1, "Final", "2026-01-23", "passed"),
+    )
+    rows_with_duplicate = db.execute(q5).fetchall()
+    placements_with_duplicate = {
+        (row["department"], row["recruiter_name"]): row["successful_placements"]
+        for row in rows_with_duplicate
+    }
+    assert placements_with_duplicate[("Engineering", "Priya Shah")] == 3
 
-    fatima = next(r for r in rows if r["recruiter_name"] == "Fatima Al-Sayed")
-    assert fatima["successful_placements"] == 1
+    db.execute(
+        "INSERT INTO applicants VALUES (?, ?, ?, ?, ?);",
+        (12, "Test Applicant", "test@example.com", None, "2026-02-22"),
+    )
+    db.execute(
+        "INSERT INTO interviews VALUES (?, ?, ?, ?, ?, ?);",
+        (26, 12, 7, "Final", "2026-02-22", "passed"),
+    )
+    rows_with_tie = db.execute(q5).fetchall()
+    engineering_tied_placements = {
+        (row["recruiter_name"], row["successful_placements"])
+        for row in rows_with_tie
+        if row["department"] == "Engineering"
+    }
+    assert engineering_tied_placements == {
+        ("Priya Shah", 3),
+        ("Daniel Ortiz", 3),
+    }

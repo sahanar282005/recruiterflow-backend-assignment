@@ -1,210 +1,152 @@
-# RecruiterFlow — Build-a-Recruiter-Bot Backend
+# Build-a-Recruiter-Bot
 
-A production-ready, lightweight backend implementing the **RecruiterFlow Engineering — Build-a-Recruiter-Bot** assignment.
+A backend service for the RecruiterFlow Backend Developer Intern assignment. It stores the assignment's fictional candidate profiles and job openings in SQLite, calculates candidate-job compatibility, and returns ranked matches through REST APIs. The separate SQL Detective solution answers five hiring-operations questions against the assignment's supplied schema and data.
 
-This project delivers:
-1. **Part 1 — Recruiter Bot**: A FastAPI service powered by raw, handwritten SQLite SQL that implements a transparent, two-way candidate-job matching engine with 60/30/10 weighted scoring and human-readable explanations.
-2. **Part 2 — SQL Detective Challenge**: Handwritten analytical SQL queries solving complex hiring-ops data challenges involving deduplication, conversion rates, and window functions.
+## Features
 
----
+- Loads 15 fictional candidates and 6 jobs from a repeatable seed script.
+- Stores candidates, jobs, and their multi-valued attributes in relational tables.
+- Uses handwritten SQL through Python's `sqlite3` driver; no ORM or query builder is used.
+- Ranks candidates for a job and jobs for a candidate, with a score and explanation for each result.
+- Includes the SQL Detective answers, automated matching and SQL tests, and FastAPI's generated OpenAPI documentation.
 
-## 1. Technology Stack
+## Technology Stack
 
-* **Language**: Python 3.11+
-* **Web Framework**: FastAPI (0.111+)
-* **ASGI Server**: Uvicorn (0.30+)
-* **Database**: SQLite 3 (via Python standard library `sqlite3`)
-* **SQL**: 100% handwritten raw SQL and DDL (Zero ORM, zero query builders)
-* **Testing**: Pytest & HTTPX (TestClient)
+| Technology | Use |
+|---|---|
+| Python 3.10+ | Application runtime |
+| FastAPI | HTTP API and OpenAPI documentation |
+| Uvicorn | ASGI server |
+| SQLite / Python `sqlite3` | Relational storage and handwritten SQL |
+| Pytest | Unit and integration tests |
+| HTTPX | FastAPI `TestClient` dependency |
 
----
+The Python 3.10 minimum follows from the union type syntax used in the source. Dependency minimums are listed in [`requirements.txt`](requirements.txt).
 
-## 2. Project Structure
+## Project Structure
 
-```
-recruiter-bot/
+```text
+.
 ├── app/
-│   ├── __init__.py          # Application package marker
-│   ├── database.py         # SQLite connection manager & schema initializer
-│   ├── schema.sql           # Handwritten SQL DDL for candidates and jobs
-│   ├── seed.py              # Deterministic, repeatable ingestion of seed data
-│   ├── matching.py          # 60/30/10 weighted matching engine & tie-breaking logic
-│   └── main.py              # FastAPI application & REST endpoints
+│   ├── __init__.py
+│   ├── database.py          # SQLite connection and schema initialization
+│   ├── main.py              # FastAPI application, SQL reads, and API routes
+│   ├── matching.py          # Scoring, explanations, and ranking
+│   ├── schema.sql           # Handwritten application schema and indexes
+│   └── seed.py              # Fictional candidate and job data; seed routine
 ├── tests/
-│   ├── test_api.py          # Integration tests for API routes, 404s, and seed idempotency
-│   ├── test_matching.py     # Unit tests for scoring weights, normalization, and edge cases
-│   └── test_sql_detective.py# Automated tests verifying all 5 SQL detective queries
-├── sql_detective.sql        # Executable SQL file with solutions for Questions 1–5
-├── requirements.txt         # Application dependencies
-├── README.md                # Comprehensive project documentation
-└── .gitignore               # Excludes virtual environments, database files, and caches
+│   ├── test_api.py          # API behavior and seed idempotency
+│   ├── test_matching.py     # Scoring and ranking behavior
+│   └── test_sql_detective.py # SQL answers run on in-memory SQLite data
+├── sql_detective.sql        # SQL Detective answers, Questions 1-5
+├── requirements.txt
+├── .gitignore
+└── README.md
 ```
 
----
+`recruiter.db` is a local runtime database ignored by Git; it is created when the schema is initialized. Virtual environments and Python/test caches are also ignored.
 
-## 3. Database Schema Design & Rationale
+## Prerequisites
 
-The database uses handwritten SQLite DDL defined in [`app/schema.sql`](file:///Users/sagar/recruiter-bot/app/schema.sql).
+- Python 3.10 or newer.
+- Git to clone the repository.
+- No separate database server is required. SQLite is accessed through Python's standard library.
 
-### Normalized Tables
-* **`candidates`**: Core candidate attributes (`id`, `name`, `experience`, `availability`, `quirk`).
-* **`candidate_skills`**: Relational junction table mapping `candidate_id` to `skill` (composite primary key, foreign key with `ON DELETE CASCADE`).
-* **`candidate_traits`**: Relational junction table mapping `candidate_id` to `trait` (composite primary key, foreign key with `ON DELETE CASCADE`).
-* **`jobs`**: Core job attributes (`id`, `title`, `min_experience`, `tagline`).
-* **`job_required_skills`**: Relational junction table mapping `job_id` to `skill` (composite primary key, foreign key with `ON DELETE CASCADE`).
-* **`job_culture_keywords`**: Relational junction table mapping `job_id` to `keyword` (composite primary key, foreign key with `ON DELETE CASCADE`).
+## Installation and Setup
 
-```sql
-CREATE TABLE IF NOT EXISTS candidates (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    experience INTEGER NOT NULL CHECK (experience >= 0),
-    availability TEXT NOT NULL,
-    quirk TEXT NOT NULL
-);
+Clone the repository (replace the placeholder with the repository URL):
 
-CREATE TABLE IF NOT EXISTS candidate_skills (
-    candidate_id INTEGER NOT NULL,
-    skill TEXT NOT NULL,
-    PRIMARY KEY (candidate_id, skill),
-    FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS candidate_traits (
-    candidate_id INTEGER NOT NULL,
-    trait TEXT NOT NULL,
-    PRIMARY KEY (candidate_id, trait),
-    FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL UNIQUE,
-    min_experience INTEGER NOT NULL CHECK (min_experience >= 0),
-    tagline TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS job_required_skills (
-    job_id INTEGER NOT NULL,
-    skill TEXT NOT NULL,
-    PRIMARY KEY (job_id, skill),
-    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS job_culture_keywords (
-    job_id INTEGER NOT NULL,
-    keyword TEXT NOT NULL,
-    PRIMARY KEY (job_id, keyword),
-    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
-);
+```text
+git clone <REPOSITORY_URL>
+cd recruiter-bot
 ```
 
-### Schema Rationale
-* **Core Attributes Separation**: Candidate and job core attributes remain in their own tables (`candidates`, `jobs`).
-* **Normalized Relationship Tables**: Multi-valued skills, traits, required skills, and culture keywords are represented using normalized relationship tables.
-* **Relational Querying & Indexing**: This avoids JSON-in-TEXT storage, maintains standard relational normalization, and enables direct relational querying and indexing via foreign key references.
-* **Dynamic Match Computation**: Matches are computed dynamically rather than persisted in a `matches` table. This avoids stale cache invalidation issues when candidate experience or job requirements change, ensuring guaranteed real-time consistency.
+Create and activate a virtual environment.
 
----
+**Windows PowerShell**
 
-## 4. Ingestion Procedure
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-Deterministic data ingestion is implemented in [`app/seed.py`](file:///Users/sagar/recruiter-bot/app/seed.py):
-* All **15 candidates** and all **6 jobs** are seeded with their exact supplied attributes.
-* Ingestion is completely **idempotent**:
-  - `candidates` uses `ON CONFLICT(name) DO UPDATE SET ...`
-  - `jobs` uses `ON CONFLICT(title) DO UPDATE SET ...`
-* Running the seed script multiple times will never duplicate rows or produce duplicate IDs.
-* When the FastAPI application boots, the application lifecycle automatically initializes the schema and seeds the database if empty.
+**macOS / Linux**
 
----
-
-## 5. Quickstart & Installation
-
-### Step 1: Create and Activate Virtual Environment
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-### Step 2: Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+Install dependencies and seed the database:
 
-### Step 3: Seed the Database
 ```bash
+python -m pip install -r requirements.txt
 python -m app.seed
 ```
-*Expected output:*
-```
-Database seeded successfully: 15 candidates, 6 jobs.
-```
 
-### Step 4: Run the Test Suite
+The seed command creates the schema if needed, then inserts or updates the supplied candidate and job records and refreshes their associated skills, traits, and keywords. It prints the candidate and job counts on success.
+
+Start the API:
+
 ```bash
-pytest -v
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-All 16 unit, integration, and SQL detective tests will run and pass.
 
-### Step 5: Start the API Server
+The default database is `recruiter.db` in the repository root, regardless of the working directory used to launch the app. Set `DATABASE_PATH` to use another SQLite file. For example, in PowerShell use `$env:DATABASE_PATH = "C:\path\to\recruiter.db"`; in macOS/Linux use `export DATABASE_PATH="/path/to/recruiter.db"`. The app initializes the schema and runs the seed routine when it starts, so startup updates the supplied records as well.
+
+The local API address is `http://127.0.0.1:8000`. FastAPI serves Swagger UI at [`/docs`](http://127.0.0.1:8000/docs) and the OpenAPI document at [`/openapi.json`](http://127.0.0.1:8000/openapi.json).
+
+## Database Design and SQL
+
+The handwritten DDL in [`app/schema.sql`](app/schema.sql) defines:
+
+| Table | Contents |
+|---|---|
+| `candidates` | Candidate name, experience, availability, and quirk |
+| `candidate_skills` | One skill per candidate relationship row |
+| `candidate_traits` | One trait per candidate relationship row |
+| `jobs` | Job title, minimum experience, and tagline |
+| `job_required_skills` | One required skill per job relationship row |
+| `job_culture_keywords` | One culture keyword per job relationship row |
+
+Candidate and job IDs are integer primary keys. Names and titles are unique; experience values have non-negative `CHECK` constraints. Relationship tables use composite primary keys and foreign keys with `ON DELETE CASCADE`. The schema also defines indexes for names, titles, and relationship-table parent IDs. Connections enable SQLite foreign-key enforcement.
+
+Skills, traits, and keywords are stored in relationship tables rather than packed into text fields, allowing relational reads and enforcing uniqueness per parent. Database access throughout the application is handwritten SQL using `sqlite3`; values are passed using bound parameters. No ORM or query builder is used. Match results are computed when requested and are not stored in a match table.
+
+## Data Ingestion
+
+[`app/seed.py`](app/seed.py) contains the assignment's 15 candidates and 6 jobs, including skills, experience, availability, traits, quirks, required skills, culture keywords, and taglines. Run it with `python -m app.seed`. Existing rows with the same candidate name or job title are updated; their related skill, trait, and keyword rows are replaced from the seed data. Seeding the same supplied data repeatedly does not create duplicates. The script does not delete unrelated extra candidate or job rows.
+
+## Matching Algorithm
+
+The matching logic in [`app/matching.py`](app/matching.py) normalizes skill and trait/keyword tokens by trimming whitespace and converting to lowercase, then compares unique token sets. Scores use a 0-100 point scale:
+
+| Component | Weight | Calculation |
+|---|---:|---|
+| Required skill overlap | 60 points | `60 * matching required skills / total unique required skills` |
+| Experience fit | 30 points | 30 when experience meets the minimum; otherwise `30 * candidate experience / minimum experience` |
+| Culture/trait alignment | 10 points | `10 * matching culture keywords / total unique culture keywords` |
+
+Each component is zero when its corresponding requirement list is empty, except experience: a minimum of zero receives all 30 experience points. The total is the sum of the components rounded to two decimal places. With the supplied non-negative data, the resulting score ranges from 0 to 100.
+
+Results are sorted by total score descending, skill-overlap count descending, then candidate name or job title case-insensitively ascending, and finally record ID ascending. This makes equal scores deterministic while preferring stronger skill overlap before alphabetical ordering.
+
+Each explanation is constructed from the same computed values: matching versus total required skills, whether experience meets the minimum, and matching versus total culture keywords. Availability, quirks, and job taglines are stored but do not affect scoring. Culture matching is exact after lowercase/whitespace normalization; there is no semantic or fuzzy matching. These choices make the ranking understandable and deterministic, while leaving more advanced matching factors for future work.
+
+## API Reference
+
+Both routes return all matching records, ordered by score. `score` is the calculated 0-100 compatibility score; `reason` summarizes the skill, experience, and culture components.
+
+### `GET /jobs/{id}/matches`
+
+Returns candidate rankings for a job. `id` is the integer job ID. A missing job returns `404` with a `detail` message.
+
 ```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-Interactive API documentation will be available at:
-* Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-* OpenAPI JSON: [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json)
-
----
-
-## 6. Matching Algorithm Specification
-
-The matching algorithm in [`app/matching.py`](file:///Users/sagar/recruiter-bot/app/matching.py) is deterministic, transparent, and symmetric in forward (`Job -> Candidates`) and reverse (`Candidate -> Jobs`) directions.
-
-### Score Weights (0 to 100 Points)
-1. **Skill Overlap (60 points)**:
-   $$\text{skill\_score} = \left(\frac{\text{matching required skills}}{\text{total required skills}}\right) \times 60$$
-   * Tokens are normalized (lowercase and trimmed whitespace).
-
-2. **Experience Fit (30 points)**:
-   * If $\text{candidate\_experience} \ge \text{minimum\_experience}$:
-     $$\text{experience\_score} = 30$$
-   * If $\text{candidate\_experience} < \text{minimum\_experience}$:
-     $$\text{experience\_score} = 30 \times \left(\frac{\text{candidate\_experience}}{\text{minimum\_experience}}\right)$$
-   * If $\text{minimum\_experience} = 0$: $\text{experience\_score} = 30$.
-   * This rewards meeting the baseline without awarding unlimited extra credit for seniority.
-
-3. **Culture / Trait Alignment (10 points)**:
-   $$\text{culture\_score} = \left(\frac{\text{matching candidate traits and culture keywords}}{\text{total culture keywords}}\right) \times 10$$
-   * Normalized string comparisons.
-
-4. **Final Score**:
-   $$\text{final\_score} = \text{round}(\text{skill\_score} + \text{experience\_score} + \text{culture\_score}, 2)$$
-
-### Deterministic Tie-Breaking Rules
-If two records produce identical final scores, ties are broken deterministically in this order:
-1. Higher skill overlap count (descending)
-2. Alphabetical candidate name / job title (case-insensitive ascending)
-3. Stable record ID (ascending)
-
-### Match Reasons
-Every match generates a human-readable explanation derived directly from the underlying score components:
-* `Matches 3 of 3 required skills; experience meets the 3-year minimum; culture alignment 1 of 2.`
-* `Matches 1 of 2 required skills; experience is below the 5-year minimum; culture alignment 2 of 2.`
-
----
-
-## 7. API Endpoints
-
-### 1. `GET /jobs/{id}/matches`
-Returns all 15 candidates ranked for the specified job ID.
-
-#### `curl` Request:
-```bash
-curl -X GET http://127.0.0.1:8000/jobs/1/matches
+curl http://127.0.0.1:8000/jobs/1/matches
 ```
 
-#### Sample Response (`200 OK`):
+Representative response (the `matches` array is shortened here; the endpoint returns all candidates):
+
 ```json
 {
   "job_id": 1,
@@ -215,34 +157,21 @@ curl -X GET http://127.0.0.1:8000/jobs/1/matches
       "candidate_name": "Sherlock H.",
       "score": 95.0,
       "reason": "Matches 3 of 3 required skills; experience meets the 3-year minimum; culture alignment 1 of 2."
-    },
-    {
-      "candidate_id": 9,
-      "candidate_name": "Sheldon C.",
-      "score": 50.0,
-      "reason": "Matches 1 of 3 required skills; experience meets the 3-year minimum; culture alignment 0 of 2."
-    },
-    {
-      "candidate_id": 15,
-      "candidate_name": "Dwight S.",
-      "score": 30.0,
-      "reason": "Matches 0 of 3 required skills; experience meets the 3-year minimum; culture alignment 0 of 2."
     }
   ]
 }
 ```
 
----
+### `GET /candidates/{id}/matches`
 
-### 2. `GET /candidates/{id}/matches`
-Returns all 6 jobs ranked for the specified candidate ID.
+Returns job rankings for a candidate. `id` is the integer candidate ID. A missing candidate returns `404` with a `detail` message.
 
-#### `curl` Request:
 ```bash
-curl -X GET http://127.0.0.1:8000/candidates/1/matches
+curl http://127.0.0.1:8000/candidates/1/matches
 ```
 
-#### Sample Response (`200 OK`):
+Representative response (the `matches` array is shortened here; the endpoint returns all jobs):
+
 ```json
 {
   "candidate_id": 1,
@@ -253,85 +182,50 @@ curl -X GET http://127.0.0.1:8000/candidates/1/matches
       "job_title": "Backend Detective",
       "score": 95.0,
       "reason": "Matches 3 of 3 required skills; experience meets the 3-year minimum; culture alignment 1 of 2."
-    },
-    {
-      "job_id": 3,
-      "job_title": "Developer Relations Lead",
-      "score": 30.0,
-      "reason": "Matches 0 of 2 required skills; experience meets the 2-year minimum; culture alignment 0 of 2."
-    },
-    {
-      "job_id": 4,
-      "job_title": "Engineering Manager, Chaos Team",
-      "score": 30.0,
-      "reason": "Matches 0 of 3 required skills; experience meets the 5-year minimum; culture alignment 0 of 2."
     }
   ]
 }
 ```
 
----
+For example, requesting `/jobs/999/matches` returns `{"detail":"Job with ID 999 not found"}` with status `404`; the candidate route uses the corresponding candidate-specific message. `GET /health` returns `{"status":"ok"}`.
 
-### 3. Nonexistent ID Handling (`404 Not Found`)
-When requesting an ID that does not exist in the database, the server returns an HTTP 404 response:
+## SQL Detective Challenge
 
-#### Request:
+[`sql_detective.sql`](sql_detective.sql) contains the assignment's five SQL answers for its separate hiring-operations schema:
+
+1. Open job postings and their recruiters.
+2. Final-stage applicant counts for each posting, including zero-count postings.
+3. People associated with more than one posting, normalizing email casing and counting distinct postings.
+4. Recruiter Final-stage conversion rates, limited to recruiters with at least three Final interviews.
+5. **Bonus:** Recruiter(s) with the most successful Final-stage placements per department, including departments with zero successful placements and preserving ties.
+
+The queries use SQLite-compatible SQL. Question 5 uses a window function supported by SQLite 3.25.0 and later. The SQL test suite creates the assignment schema and data in an in-memory database; the SQL file itself expects the hiring-operations tables to exist already.
+
+## Testing
+
+Run the test suite with:
+
 ```bash
-curl -X GET http://127.0.0.1:8000/jobs/999/matches
+python -m pytest -v
 ```
 
-#### Response:
-```json
-{
-  "detail": "Job with ID 999 not found"
-}
-```
+The suite contains matching unit tests, API/seed integration tests, and SQL Detective tests. The SQL tests use in-memory SQLite. **The API test fixture calls `seed_database()` against the default database**, and the seed-idempotency test calls it again. Running the full suite can therefore create or update `recruiter.db` and replace the seeded relationship rows; use a disposable database or back up any local data before running it. The tests do not currently isolate API tests to a temporary database.
 
-#### Request:
-```bash
-curl -X GET http://127.0.0.1:8000/candidates/999/matches
-```
+## Design Decisions and Trade-offs
 
-#### Response:
-```json
-{
-  "detail": "Candidate with ID 999 not found"
-}
-```
+- **SQLite and handwritten SQL:** This keeps the assignment self-contained and satisfies its raw-SQL constraint without a database server. The implementation is SQLite-specific and does not provide database migrations.
+- **Normalized multi-valued attributes:** Separate skill, trait, and keyword tables avoid delimited text storage and enforce per-parent uniqueness. Reads require additional queries to assemble the API's candidate and job objects.
+- **Dynamic, explainable matching:** Scores are computed from current records at request time, avoiding stale stored scores. The fixed weighted formula is easy to explain but does not learn from outcomes or account for availability.
+- **Deterministic ranking:** Stable tie-breakers make output order repeatable, at the cost of using alphabetical order as the final preference when score and overlap tie.
 
----
+## Limitations and Future Improvements
 
-### 4. Health Check
-`GET /health` returns `{"status": "ok"}` for service verification.
+The API currently returns every candidate/job match without pagination. Matching uses exact normalized token equality and does not use availability, quirks, or job taglines. The API tests share the default database rather than an isolated test database. Possible future work includes pagination, broader integration coverage with an isolated database, and evaluating additional matching signals; these are not implemented currently.
 
----
+## AI Tool Usage
 
-## 8. Part 2 — SQL Detective Challenge
+AI assistance was used to review the assignment requirements, identify potential issues, and improve this documentation. The author remains responsible for reviewing and understanding the implementation and explaining its design decisions.
 
-The file [`sql_detective.sql`](file:///Users/sagar/recruiter-bot/sql_detective.sql) contains five handwritten SQL queries addressing analytical recruitment questions against the hiring-ops database:
+## Assignment Context and Repository
 
-1. **Question 1**: Open job postings and the names of the recruiters who own them.
-2. **Question 2**: Count of distinct applicants reaching the `Final` stage per job posting, using a `LEFT JOIN` to preserve postings with zero Final-stage applicants.
-3. **Question 3**: Identifying applicants who applied to more than one distinct job posting, handling casing anomalies (such as duplicate Ananya Rao records with different email capitalization) via `LOWER(email)` and counting distinct `job_posting_id`s through interviews.
-4. **Question 4**: Recruiter Final-stage conversion rate (`passed ÷ total Final-stage interviews`), filtered to recruiters with at least 3 Final-stage interviews and protected against division by zero using `NULLIF`.
-5. **Question 5 (Bonus)**: Recruiter with the most successful placements (`stage = 'Final' AND outcome = 'passed'`) per department using a `DENSE_RANK()` window function.
-
-### Running the SQL Queries
-To execute against a SQLite database populated with the hiring-ops schema:
-```bash
-sqlite3 hiring_ops.db < sql_detective.sql
-```
-Or execute the automated test suite verifying all 5 queries:
-```bash
-pytest tests/test_sql_detective.py -v
-```
-
----
-
-## 9. Assumptions and Trade-offs
-
-1. **Database Access**: Direct standard library `sqlite3` was used with raw parameterized SQL (`?` placeholders) to comply strictly with the no-ORM, handwritten SQL constraint.
-2. **Candidate-Job Matches Storage**: Computed dynamically on request rather than saved in a permanent `matches` table. This prevents data drift when candidates or job requirements change and eliminates unnecessary database writes.
-3. **Multivalued Attributes**: Represented using normalized relationship tables (`candidate_skills`, `candidate_traits`, `job_required_skills`, `job_culture_keywords`) with foreign keys and compound primary keys, providing clean relational normalization without JSON-in-TEXT storage.
-4. **Tie-Breaking Rule**: When two candidates or jobs share the exact same score, ties are broken first by higher skill overlap count, second by case-insensitive name/title ascending, and third by record ID ascending.
-5. **Window Function Ties in Question 5**: `DENSE_RANK()` was chosen over `ROW_NUMBER()` so that in the event of a tie for top placements in a department, all tied recruiters are fairly included rather than arbitrarily excluding one.
+This repository implements RecruiterFlow's **Backend Developer Intern** take-home assignment: the Recruiter Bot backend and the separate SQL Detective Challenge. Replace `<REPOSITORY_URL>` in the clone instructions with the repository's actual URL; no remote URL is configured in this local checkout.
