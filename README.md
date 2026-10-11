@@ -57,8 +57,8 @@ The Python 3.10 minimum follows from the union type syntax used in the source. D
 Clone the repository (replace the placeholder with the repository URL):
 
 ```text
-git clone <REPOSITORY_URL>
-cd recruiter-bot
+git clone git clone https://github.com/sahanar282005/recruiterflow-backend-assignment.git
+cd recruiterflow-backend-assignment
 ```
 
 Create and activate a virtual environment.
@@ -209,7 +209,8 @@ Run the test suite with:
 python -m pytest -v
 ```
 
-The suite contains matching unit tests, API/seed integration tests, and SQL Detective tests. The SQL tests use in-memory SQLite. **The API test fixture calls `seed_database()` against the default database**, and the seed-idempotency test calls it again. Running the full suite can therefore create or update `recruiter.db` and replace the seeded relationship rows; use a disposable database or back up any local data before running it. The tests do not currently isolate API tests to a temporary database.
+The suite contains matching unit tests, API/seed integration tests, and SQL Detective tests. The SQL tests use in-memory SQLite. **The API test fixture calls `seed_database()` against the default database**, and the seed-idempotency test calls it again. 
+Database safety: The API tests use the configured database and may create or update recruiter.db, including replacing seeded relationship rows. Run the full suite with a disposable database, or back up your local database first. The SQL tests use an in-memory database. The current API tests do not automatically isolate themselves from the default database.
 
 ## Design Decisions and Trade-offs
 
@@ -224,7 +225,7 @@ The API currently returns every candidate/job match without pagination. Matching
 
 ## AI Tool Usage
 
-AI assistance was used to review the assignment requirements, identify potential issues, and improve this implementation. Assistance was taken to debug the failures in API testing and trying to achieve bonus 5 SQL test cases. The author remains responsible for reviewing and understanding the implementation and explaining its design decisions.
+AI tools were used to review the assignment requirements, identify potential issues, debug API tests, and refine the bonus Question 5 SQL query and its tests. The implementation was reviewed and tested, and I take responsibility for understanding the code and explaining the design decisions and trade-offs.
 
 ## Assignment Context and Repository
 
