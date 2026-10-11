@@ -57,7 +57,7 @@ The Python 3.10 minimum follows from the union type syntax used in the source. D
 Clone the repository (replace the placeholder with the repository URL):
 
 ```text
-git clone git clone https://github.com/sahanar282005/recruiterflow-backend-assignment.git
+git clone https://github.com/sahanar282005/recruiterflow-backend-assignment.git
 cd recruiterflow-backend-assignment
 ```
 
